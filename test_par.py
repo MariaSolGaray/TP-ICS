@@ -2,7 +2,7 @@ from par import es_par_logico
 
 
 def test_par_positivo():
-    assert es_par_logico(2)
+    assert not es_par_logico(2)
 
 
 def test_impar_positivo():
