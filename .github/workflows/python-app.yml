@@ -80,20 +80,39 @@ jobs:
             --data "{\"text\":\"❌ Falló el análisis de SonarCloud.\"}" \
             ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: SonarQube Quality Gate Check
-        id: sonarqube-quality-gate
-        uses: sonarsource/sonarqube-quality-gate-action@master
-        timeout-minutes: 5
+      - name: Esperar y verificar Quality Gate en SonarCloud
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      - name: Notificar error SonarCloud en Slack
-        if: failure() && steps.sonarqube-quality-gate.outcome == 'failure'
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-            --data '{"text":"❌ Quality Gate fallido en SonarCloud para MariaSolGaray_TP-ICS"}' \
-            ${{ secrets.SLACK_WEBHOOK_URL }}
+          PROJECT_KEY="MariaSolGaray_TP-ICS"
+          echo "Consultando estado del Quality Gate en SonarCloud..."
+          
+          # Esperar unos segundos iniciales para que SonarCloud procese el reporte
+          sleep 15
 
+          for i in {1..12}; do
+            RESPONSE=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status?projectKey=${PROJECT_KEY}")
+            STATUS=$(echo "$RESPONSE" | jq -r .projectStatus.status 2>/dev/null || echo "PENDING")
+            
+            echo "Intento $i - Quality Gate status: $STATUS"
+
+            if [ "$STATUS" = "OK" ]; then
+              echo "✅ Quality Gate aprobado con éxito."
+              exit 0
+            elif [ "$STATUS" = "ERROR" ]; then
+              echo "❌ Quality Gate rechazado por SonarCloud."
+              curl -X POST -H 'Content-type: application/json' \
+                --data '{"text":"❌ Quality Gate fallido en SonarCloud para MariaSolGaray_TP-ICS"}' \
+                ${{ secrets.SLACK_WEBHOOK_URL }}
+              exit 1
+            fi
+
+            # Si es NONE o PENDING, espera 10 segundos antes de reintentar
+            sleep 10
+          done
+
+          echo "⏱️ Timeout esperando el procesamiento de SonarCloud."
+          exit 1
 
       - name: Mover tarjeta Trello según commit
         if: github.event_name == 'push'
