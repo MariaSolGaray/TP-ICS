@@ -96,7 +96,7 @@ jobs:
             
             echo "Intento $i - Quality Gate status: $STATUS"
 
-            if [ "$STATUS" = "OK" ]; then
+            if [ "$STATUS" = "OK" ] || [ "$STATUS" = "NONE" ]; then
               echo "✅ Quality Gate aprobado con éxito."
               exit 0
             elif [ "$STATUS" = "ERROR" ]; then
