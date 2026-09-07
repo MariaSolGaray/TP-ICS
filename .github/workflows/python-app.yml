@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout del código
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
       - name: Configurar Python
         uses: actions/setup-python@v4
@@ -78,42 +80,20 @@ jobs:
             --data "{\"text\":\"❌ Falló el análisis de SonarCloud.\"}" \
             ${{ secrets.SLACK_WEBHOOK_URL }}
 
-      - name: Esperar resultados de Quality Gate
-        run: |
-          sleep 30  # Espera a que SonarCloud procese el análisis
-
-      - name: Verificar estado de Quality Gate en SonarCloud
+      - name: SonarQube Quality Gate Check
+        id: sonarqube-quality-gate
+        uses: sonarsource/sonarqube-quality-gate-action@master
+        timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: |
-          PROJECT_KEY="MariaSolGaray_TP-ICS"
-          for i in {1..10}; do
-            STATUS=$(curl -s -u "${SONAR_TOKEN}:" "https://sonarcloud.io/api/qualitygates/project_status?projectKey=$PROJECT_KEY" | jq -r .projectStatus.status)
-            echo "Intento $i - Quality Gate status: $STATUS"
-            if [ "$STATUS" != "null" ]; then
-              break
-            fi
-            sleep 10
-          done
-          if [ "$STATUS" != "OK" ]; then
-            curl -X POST -H 'Content-type: application/json' \
-              --data "{\"text\":\"❌ Quality Gate fallido en SonarCloud para $PROJECT_KEY. Estado: $STATUS\"}" \
-              ${{ secrets.SLACK_WEBHOOK_URL }}
-            exit 1
-          fi
 
-      - name: Notificar a Slack
-        if: always()
+      - name: Notificar error SonarCloud en Slack
+        if: failure() && steps.sonarqube-quality-gate.outcome == 'failure'
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            MESSAGE="✅ Build exitosa y lista para deploy"
-          else
-            MESSAGE="❌ Build fallida. Revisar errores"
-          fi
-
           curl -X POST -H 'Content-type: application/json' \
-            --data "{\"text\":\"${MESSAGE}\"}" \
+            --data '{"text":"❌ Quality Gate fallido en SonarCloud para MariaSolGaray_TP-ICS"}' \
             ${{ secrets.SLACK_WEBHOOK_URL }}
+
 
       - name: Mover tarjeta Trello según commit
         if: github.event_name == 'push'
