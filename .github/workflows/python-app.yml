@@ -138,6 +138,10 @@ jobs:
             fi
           done
 
+      - name: Build Docker Image
+        run: |
+          docker build -t tp-ics:latest .    
+
   deploy:
     name: Despliegue en Render
     needs: ci-checks
